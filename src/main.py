@@ -1,13 +1,8 @@
 from fastapi import FastAPI
 
+from src.urls import register_routers
+
+
 app = FastAPI()
 
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
+register_routers(app)  # Регистрация URL

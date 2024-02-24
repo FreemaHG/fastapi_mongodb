@@ -24,8 +24,15 @@ class CreateUserSchema(UserBaseSchema):
     Схема для создания нового пользователя
     """
     password: constr(min_length=8)
-    passwordConfirm: str
+    password_confirm: str
     verified: bool = False
+
+class LoginUserSchema(BaseModel):
+    """
+    Схема для входа пользователя
+    """
+    email: EmailStr
+    password: constr(min_length=8)
 
 class UserOutSchema(UserBaseSchema):
     """

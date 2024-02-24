@@ -15,4 +15,4 @@ except Exception:
 
 db = client[settings.MONGO_INITDB_DATABASE]  # Создаем БД
 User = db.users  #  Сздаем коллекцию (таблицу) users
-User.create_index([('email', pymongo.ASCENDING)], unigue=True)  # Индексируем поле email, проверка на уникальность
+User.create_index([('email', pymongo.ASCENDING)])  # Индексируем поле email
