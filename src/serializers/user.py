@@ -2,7 +2,7 @@
 # Поскольку MongoDB использует документы BSON, создадим несколько сериализаторов,
 # чтобы преобразовать их в словари Python.
 
-def user_entity(user) -> dict:
+async def user_entity(user) -> dict:
     """
     Преобразовываем объект пользователя из БД в словарь
     :param user: объект пользователя
@@ -20,7 +20,7 @@ def user_entity(user) -> dict:
         "updated_at": user["updated_at"]
     }
 
-def user_response_entity(user) -> dict:
+async def user_response_entity(user) -> dict:
     """
     Преобразовываем ответ с данными пользователя в словарь
     """
@@ -34,7 +34,7 @@ def user_response_entity(user) -> dict:
         "updated_at": user["updated_at"]
     }
 
-def embedded_user_response(user) -> dict:
+async def embedded_user_response(user) -> dict:
     """
     Возвращаем словарь с основными данными пользователя
     """
@@ -45,8 +45,7 @@ def embedded_user_response(user) -> dict:
         "photo": user["photo"]
     }
 
-
-def user_list_entity(users) -> list:
+async def user_list_entity(users) -> list:
     """
     Возвращаем список с данными пользователей
     """

@@ -3,13 +3,13 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
 
-def hash_password(password: str) -> str:
+async def hash_password(password: str) -> str:
     """
     Хэширование паролей в виде обычного текста
     """
     return pwd_context.hash(password)
 
-def verify_password(password: str, hashed_password: str) -> bool:
+async def verify_password(password: str, hashed_password: str) -> bool:
     """
     Проверка пароля с его хэшем
     """

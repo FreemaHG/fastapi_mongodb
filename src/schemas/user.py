@@ -1,6 +1,8 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, constr
 
+from src.schemas.base import BaseOutSchema
+
 
 class UserBaseSchema(BaseModel):
     """
@@ -8,16 +10,13 @@ class UserBaseSchema(BaseModel):
     """
     name: str
     email: EmailStr
-    photo: str
+    photo: str | None = None
     role: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
     class Config:
         orm_mode = True
-
-    # Автоматическое преобразование данных ORM-модели в объект схемы для сериализации
-    # model_config = ConfigDict(from_attributes=True)
 
 class CreateUserSchema(UserBaseSchema):
     """
@@ -34,11 +33,11 @@ class LoginUserSchema(BaseModel):
     email: EmailStr
     password: constr(min_length=8)
 
-class UserOutSchema(UserBaseSchema):
+class UserOutSchema(BaseOutSchema, UserBaseSchema):
     """
     Схема для вывода данных о пользователе
     """
-    id: str
+    pass
 
 class UserResponseSchema(BaseModel):
     """

@@ -1,15 +1,16 @@
 import pymongo
-from pymongo import mongo_client
+from motor import motor_asyncio
 from loguru import logger
 
 from src.config import settings
 
-
-client = mongo_client.MongoClient(settings.DATABASE_URL, serverSelectionTimeoutMS=5000)
+# Асинхронное подключение к БД
+client = motor_asyncio.AsyncIOMotorClient(settings.DATABASE_URL, serverSelectionTimeoutMS=5000)
 
 try:
     conn = client.server_info()
-    logger.debug(f'Подключение к MongoDB: {conn.get("version")}')
+    logger.debug('Подключение к MongoDB')
+
 except Exception:
     logger.error('Не удается подключиться к MongoDB')
 

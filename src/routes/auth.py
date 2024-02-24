@@ -1,13 +1,13 @@
-from datetime import datetime, timedelta
-from bson.objectid import ObjectId
-from fastapi import APIRouter, Response, status, Depends, HTTPException
-from loguru import logger
+from fastapi import Response, status, Depends, HTTPException
 
-from src import oauth2
-from src.database import User
-from src.serializers.user import user_entity, user_response_entity
-from src.schemas.user import UserBaseSchema, CreateUserSchema, UserOutSchema, UserResponseSchema, LoginUserSchema
-from src.utils.password import hash_password, verify_password
+from src.repositories.user import UserRepository
+from src.routes.base import APIBaseRouter
+from src.serializers.user import user_entity
+from src.schemas.user import CreateUserSchema, UserResponseSchema, LoginUserSchema
+from src.services.token import TokenService
+from src.services.user import UserService
+from src.utils.check_authorization import require_user
+from src.utils.password import verify_password
 from src.oauth2 import AuthJWT
 from src.config import settings
 
@@ -15,10 +15,10 @@ from src.config import settings
 _ACCESS_TOKEN_EXPIRES_IN = settings.ACCESS_TOKEN_EXPIRES_IN
 _REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 
-router = APIRouter(tags=['auth'])
+router = APIBaseRouter(tags=['Auth'])
 
 @router.post(
-    '/register',
+    '/auth/register',
     status_code=status.HTTP_201_CREATED,
     response_model=UserResponseSchema,
 )
@@ -27,8 +27,7 @@ async def create_user(user_data: CreateUserSchema):
     Регистрация пользователя
     """
 
-    # Ищем пользователя в БД по email
-    user = User.find_one({'email': user_data.email.lower()})
+    user = await UserRepository.get_for_email(email=user_data.email.lower())
 
     if user:
         raise HTTPException(
@@ -43,29 +42,12 @@ async def create_user(user_data: CreateUserSchema):
             detail='Пароли не совпадают'
         )
 
-    # Хэширование и пересохранение пароля
-    user_data.password = hash_password(user_data.password)
-    del user_data.password_confirm  # Удаляем из словаря с входными данными пароль-подтверждение
-
-    # Сохранение нового пользователя
-    user_data.role = 'user'
-    user_data.verified = True
-    user_data.email = user_data.email.lower()
-    user_data.created_at = datetime.utcnow()
-    user_data.updated_at = user_data.created_at
-
-    # Добавляем пользователя в БД (вернется id пользователя)
-    result = User.insert_one(user_data.dict())
-
-    # Получаем только что созданного пользователя из БД по id
-    # Передав в сериализатор user_response_entity данные пользователя,
-    # мы тем самым удаляем из ответа чувствительные данные (пароль)
-    new_user = user_response_entity(User.find_one({'_id': result.inserted_id}))
+    new_user = await UserService.create(user_data=user_data)
 
     return {'status': 'success', 'user': new_user}
 
 
-@router.post('/login')
+@router.post('/auth/login')
 async def login(
         user_data: LoginUserSchema,
         response: Response,
@@ -75,8 +57,7 @@ async def login(
     Авторизация пользователя
     """
 
-    # Поиск пользователя в БД по email
-    db_user = User.find_one({'email': user_data.email.lower()})
+    db_user = await UserRepository.get_for_email(email=user_data.email.lower())
 
     if not db_user:
         raise HTTPException(
@@ -84,38 +65,23 @@ async def login(
             detail='Пользователь с таким email не зарегистрирован'
         )
 
-    user = user_entity(db_user)  # Сериализуем данные пользователя в словарь
+    user = await user_entity(db_user)  # Сериализуем данные пользователя в словарь
 
     # Проверяем введенный пароль с хэшированным из БД
-    if not verify_password(user_data.password, user['password']):
+    # if not verify_password(user_data.password, user['password']):
+    if not await verify_password(user_data.password, user['password']):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Пароль не верен'
         )
 
-    # Создаем токен доступа (записываем id пользователя в токен)
-    access_token = Authorize.create_access_token(
-        subject=str(user["id"]), expires_time=timedelta(minutes=_ACCESS_TOKEN_EXPIRES_IN))
+    await TokenService.set_cookies(response=response, user_id=user['id'], Authorize=Authorize)
 
-    # Создаем токен обновления (записываем id пользователя в токен)
-    refresh_token = Authorize.create_refresh_token(
-        subject=str(user["id"]), expires_time=timedelta(minutes=_REFRESH_TOKEN_EXPIRES_IN))
-
-    # Сохраняем токены обновления и доступа в файлах cookie
-    response.set_cookie('access_token', access_token, _ACCESS_TOKEN_EXPIRES_IN * 60,
-                        _ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, True, 'lax')
-
-    response.set_cookie('refresh_token', refresh_token,
-                        _REFRESH_TOKEN_EXPIRES_IN * 60, _REFRESH_TOKEN_EXPIRES_IN * 60, '/', None, False, True, 'lax')
-
-    response.set_cookie('logged_in', 'True', _ACCESS_TOKEN_EXPIRES_IN * 60,
-                        _ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, False, 'lax')
-
-    return {'status': 'success', 'access_token': access_token}
+    return {'status': 'success'}
 
 
-@router.get('/refresh')
-def refresh_token(
+@router.get('/auth/refresh')
+async def refresh_token(
         response: Response,
         Authorize: AuthJWT = Depends())\
         :
@@ -123,29 +89,12 @@ def refresh_token(
     Обновление токена доступа пользователя
     """
 
+    user_id = None
+
     try:
         # Гарантирует, что файл cookie с токеном обновления был включен во входящий запрос
         Authorize.jwt_refresh_token_required()
-
         user_id = Authorize.get_jwt_subject()  # Извлекаем данные из токена (id пользователя)
-
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail='Не удалось обновить токен доступа'
-            )
-
-        # Поиск пользователя в БД по id из токена
-        user = user_entity(User.find_one({'_id': ObjectId(str(user_id))}))
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail='Пользователь, принадлежащий к этому токену, больше не существует'
-            )
-
-        access_token = Authorize.create_access_token(
-            subject=str(user["id"]), expires_time=timedelta(minutes=_ACCESS_TOKEN_EXPIRES_IN))
 
     except Exception as e:
         error = e.__class__.__name__
@@ -159,24 +108,33 @@ def refresh_token(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=error)
 
-    # Сохраняем токены обновления и доступа в файлах cookie
-    response.set_cookie('access_token', access_token, _ACCESS_TOKEN_EXPIRES_IN * 60,
-                        _ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, True, 'lax')
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Не удалось обновить токен доступа'
+        )
 
-    response.set_cookie('logged_in', 'True', _ACCESS_TOKEN_EXPIRES_IN * 60,
-                        _ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, False, 'lax')
+    user = await UserService.get(user_id=user_id)
 
-    return {'access_token': access_token}
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Пользователь, принадлежащий к этому токену, больше не существует'
+        )
+
+    await TokenService.refresh(response=response, user_id=user['id'], Authorize=Authorize)
+
+    return {'message': 'OK'}
 
 
 @router.get(
-    '/logout',
+    '/auth/logout',
     status_code=status.HTTP_200_OK
 )
-def logout(
+async def logout(
         response: Response,
         Authorize: AuthJWT = Depends(),
-        user_id: str = Depends(oauth2.require_user)):
+        user_id: str = Depends(require_user)):
     """
     Выход пользователя из учетной записи
     """
