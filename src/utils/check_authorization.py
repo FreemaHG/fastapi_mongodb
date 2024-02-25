@@ -15,14 +15,6 @@ async def require_user(Authorize: AuthJWT = Depends()) -> int:
     try:
         Authorize.jwt_required()  # Включаем файл cookie токена доступа в запрос
         user_id = Authorize.get_jwt_subject()  # Извлекаем данные пользователя (id пользователя) из cookie
-        user_db = await UserRepository.get_for_id(user_id=user_id)
-        user = await user_entity(user_db)
-
-        if not user:
-            raise UserNotFound('Пользователь больше не существует')
-
-        if not user["verified"]:
-            raise NotVerified('У вас не подтвержденная запись')
 
     except Exception as e:
         error = e.__class__.__name__
@@ -42,5 +34,14 @@ async def require_user(Authorize: AuthJWT = Depends()) -> int:
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='Токен недействителен или срок его действия истек')
+
+    user_db = await UserRepository.get_for_id(user_id=user_id)
+    user = await user_entity(user_db)
+
+    if not user:
+        raise UserNotFound('Пользователь больше не существует')
+
+    if not user["verified"]:
+        raise NotVerified('У вас не подтвержденная запись')
 
     return user_id

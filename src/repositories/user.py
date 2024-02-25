@@ -21,7 +21,7 @@ class UserRepository:
         return result.inserted_id
 
     @classmethod
-    async def get_for_id(cls, user_id: int) -> User:
+    async def get_for_id(cls, user_id: str) -> User:
         """
         Поиск пользователя в БД по id
         :param user_id: id пользователя для поиска

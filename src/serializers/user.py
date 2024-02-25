@@ -49,4 +49,4 @@ async def user_list_entity(users) -> list:
     """
     Возвращаем список с данными пользователей
     """
-    return [user_entity(user) for user in users]
+    return [await user_entity(user) for user in users]

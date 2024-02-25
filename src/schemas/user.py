@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, constr
 
 from src.schemas.base import BaseOutSchema
+from src.schemas.mixin import DatetimeFormatterMixin
 
 
 class UserBaseSchema(BaseModel):
@@ -33,7 +34,7 @@ class LoginUserSchema(BaseModel):
     email: EmailStr
     password: constr(min_length=8)
 
-class UserOutSchema(BaseOutSchema, UserBaseSchema):
+class UserOutSchema(BaseOutSchema, UserBaseSchema, DatetimeFormatterMixin):
     """
     Схема для вывода данных о пользователе
     """
