@@ -21,7 +21,9 @@
     git clone https://github.com/FreemaHG/fastapi_mongodb.git
     ```
    
-2. Переименовываем файл "**.env.template**" в "**.env**".
+### Prod
+
+2. Переименовываем файл "**.env.prod.template**" в "**.env**".
 
 
 3. Собираем и запускаем контейнер с БД и приложением:
@@ -32,4 +34,19 @@
 4. Остановка и удаление контейнеров:
    ```
    docker-compose down
+   ```
+   
+### Dev
+
+2. Переименовываем файл "**.env.dev.template**" в "**.env**".
+
+
+3. Собираем и запускаем контейнер с БД:
+   ```
+   docker-compose up -d mongo
+   ```
+   
+4. Запускаем приложение:
+   ```
+   uvicorn src.main:app --reload
    ```
