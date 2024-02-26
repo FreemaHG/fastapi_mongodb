@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List
 
 from pydantic import BaseModel, create_model
@@ -41,8 +40,7 @@ class PostSchema(PostBaseSchema, DatetimeFormatterMixin):
     """
     Cхема для записей
     """
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    pass
 
 # Схема для обновления записи (patch-запрос, поля не обязательные)
 PostInOptionalSchema = PostSchema.all_optional('PostInOptionalSchema')

@@ -2,6 +2,21 @@ version: '3'
 
 services:
 
+  api:
+    build:
+      context: .
+    env_file:
+      - .env
+    container_name: api
+    restart: on-failure
+    expose:
+      - 8000
+    ports:
+      - 8000:8000
+    command: [ "/docker/api.sh" ]
+    depends_on:
+      - mongo
+
   mongo:
     image: mongo:latest
     container_name: mongo
@@ -13,6 +28,8 @@ services:
       MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
     volumes:
       - mongo:/data/db
+    expose:
+      - 6000
     ports:
       - '6000:27017'
 

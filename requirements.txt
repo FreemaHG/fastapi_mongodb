@@ -7,3 +7,4 @@ passlib==1.7.4
 fastapi-jwt-auth[asymmetric]
 fastapi_pagination==0.12.17
 loguru==0.7.2
+uvicorn==0.27.1

@@ -32,8 +32,6 @@ async def populated_post_entity(post) -> Dict:
 async def post_list_entity(posts) -> List:
     """
     Сериализуем и возвращаем список постов
-    :param posts:
-    :return:
     """
 
     posts_list = [await post_entity(post) for post in posts]
@@ -43,8 +41,6 @@ async def post_list_entity(posts) -> List:
 async def post_list_all_entity(posts) -> List:
     """
     Сериализуем и возвращаем список постов
-    :param posts:
-    :return:
     """
 
     posts_list = [await populated_post_entity(post) for post in posts]

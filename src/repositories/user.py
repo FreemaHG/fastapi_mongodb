@@ -6,11 +6,11 @@ from src.schemas.user import CreateUserSchema
 
 class UserRepository:
     """
-    CRUD операции с пользователем
+    Создание и вывод пользователей по id и email
     """
 
     @classmethod
-    async def create(cls, user_data: CreateUserSchema) -> int:
+    async def create(cls, user_data: CreateUserSchema) -> str:
         """
         Создание пользователя
         :param user_data: данные нового пользователя

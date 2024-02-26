@@ -5,8 +5,7 @@ from src.routes.base import APIBaseRouter
 from src.schemas.post import (
     PostOutWithAuthorSchema, ListPostWithAuthorsResponse
 )
-from src.database import Post
-from src.serializers.post import post_list_all_entity
+from src.services.post import PostService
 
 
 router = APIBaseRouter(tags=['Post guest'])
@@ -24,34 +23,13 @@ async def get_posts(
     Вывод всех постов (с данными авторов)
     """
 
-    pipeline = [
-        # Фильтрация
-        {'$match': {
-                # по частичному совпадению в title или content (без учета регистра)
-                "$or": [
-                    {"title": {"$regex": f'.*{search}.*', "$options": "i"}},
-                    {"content": {"$regex": f'.*{search}.*', "$options": "i"}},
-                ]
-        }},
-        # Запрос связанных данных автора (можно вывести данные автора в ответе)
-        {'$lookup': {
-            'from': 'users',
-            'localField': 'user',
-             'foreignField': '_id',
-            'as': 'user'}
-        },
-        {'$unwind': '$user'},
-        # Сортировка по дате (сначала новые)
-        {"$sort": {"updated_at": -1}},
-        # Пагинация
-        {"$skip": (page - 1) * limit},
-        {"$limit": limit}
-    ]
+    posts = await PostService.get_list(search=search, page=page, limit=limit)
 
-    results = await Post.aggregate(pipeline).to_list(length=None)
-    posts = await post_list_all_entity(results)
-
-    return {'status': 'success', 'results': len(posts), 'posts': posts}
+    return {
+        'status': 'success',
+        'results': len(posts),
+        'posts': posts
+    }
 
 @router.get(
     '/posts/{post_id}',
@@ -72,32 +50,12 @@ async def get_post(
             detail=f"Невалидный номер записи: {post_id}"
         )
 
-    pipeline = [
-        # Фильтрация
-        {'$match': {
-                # Поиск по id записи
-                "$and": [
-                    {'_id': ObjectId(post_id)}
-                ]
-        }},
-        # Запрос связанных данных автора (можно вывести данные автора в ответе)
-        {'$lookup': {
-            'from': 'users',
-            'localField': 'user',
-             'foreignField': '_id',
-            'as': 'user'}
-        },
-        {'$unwind': '$user'},
-    ]
+    posts = await PostService.get(post_id=post_id)
 
-    results = await Post.aggregate(pipeline).to_list(length=None)
-
-    if len(results) == 0:
+    if len(posts) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Запись №{post_id} не найдена"
         )
 
-    post = await post_list_all_entity(results)
-
-    return post[0]
+    return posts[0]

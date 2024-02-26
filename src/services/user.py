@@ -12,7 +12,7 @@ from src.utils.password import hash_password
 class UserService:
 
     @classmethod
-    async def get(cls, user_id: int) -> Dict | None:
+    async def get(cls, user_id: str) -> Dict | None:
         """
         Возврат пользователя по id
         :param user_id: id пользователя

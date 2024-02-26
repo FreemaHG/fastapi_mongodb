@@ -1,14 +1,9 @@
-from datetime import datetime
-
 from bson import ObjectId
 from fastapi import Depends, status, HTTPException, Response
-from loguru import logger
-from pymongo import ReturnDocument
 
-from src.database import Post
 from src.routes.base import APIBaseRouter
 from src.schemas.post import ListPostResponse, PostOutSchema, PostSchema, PostInOptionalSchema
-from src.serializers.post import post_list_entity, post_entity
+from src.services.author import AuthorService
 from src.utils.check_authorization import require_user
 
 
@@ -28,23 +23,13 @@ async def get_posts(
     Вывод постов текущего пользователя
     """
 
-    # Фильтрация по автору и частичному совпадению в title или content (без учета регистра)
-    filter_criteria = {
-        "$and": [
-            {'user': ObjectId(user_id)},
-            {"$or": [
-                {"title": {"$regex": f'.*{search}.*', "$options": "i"}},
-                {"content": {"$regex": f'.*{search}.*', "$options": "i"}},
-            ]}
-        ]
+    posts = await AuthorService.get_list(limit=limit, page=page, search=search, user_id=user_id)
+
+    return {
+        'status': 'success',
+        'results': len(posts),
+        'posts': posts
     }
-
-    # Пагинация и сортировка по дате (сначала новые)
-    results = Post.find(filter_criteria).sort([("updated_at", -1)]).skip((page - 1) * limit).limit(limit)
-    results = await results.to_list(length=None)
-    posts = await post_list_entity(results)
-
-    return {'status': 'success', 'results': len(posts), 'posts': posts}
 
 @router.post(
     '/author/posts',
@@ -58,16 +43,7 @@ async def create_post(
     """
     Добавление записи
     """
-
-    post.created_at = datetime.utcnow()
-    post.updated_at = post.created_at
-
-    post_dict = post.dict()
-    post_dict['user'] = ObjectId(user_id)
-
-    result = await Post.insert_one(post_dict)
-    post_db = await Post.find_one({'_id': result.inserted_id})
-    new_post = await post_entity(post_db)
+    new_post = await AuthorService.create(user_id=user_id, post=post)
 
     return new_post
 
@@ -91,23 +67,13 @@ async def get_post(
             detail=f"Невалидный номер записи: {post_id}"
         )
 
-    # Фильтрация по id автора и записи
-    query = {
-        '$and': [
-            {'_id': ObjectId(post_id)},
-            {'user': ObjectId(user_id)}
-        ]
-    }
+    post = await AuthorService.get(post_id=post_id, user_id=user_id)
 
-    post_db = await Post.find_one(query)
-
-    if not post_db:
+    if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Запись №{post_id} не найдена"
         )
-
-    post = await post_entity(post_db)
 
     return post
 
@@ -132,22 +98,7 @@ async def update_post(
             detail=f"Невалидный номер записи: {post_id}"
         )
 
-    # Поиск записи по id автора и поста
-    filter_criteria = {
-        "$and": [
-            {'user': ObjectId(user_id)},
-            {'_id': ObjectId(post_id)}
-        ]
-    }
-
-    # Поиск и обновление записи
-    # ReturnDocument.AFTER - возврат обновленной записи
-    # Если записи нет - вернет None
-    updated_post = await Post.find_one_and_update(
-        filter_criteria,
-        {'$set': post.dict(exclude_none=True)},
-        return_document=ReturnDocument.AFTER
-    )
+    updated_post = await AuthorService.update(post_id=post_id, user_id=user_id, post=post)
 
     if not updated_post:
         raise HTTPException(
@@ -155,7 +106,7 @@ async def update_post(
             detail=f'Запись №{post_id} не найдена'
         )
 
-    return await post_entity(updated_post)
+    return updated_post
 
 @router.delete(
     '/author/posts/{post_id}',
@@ -175,20 +126,9 @@ async def delete_post(
             detail=f"Невалидный номер записи: : {post_id}"
         )
 
-    # Поиск записи по id автора и поста
-    filter_criteria = {
-        "$and": [
-            {'user': ObjectId(user_id)},
-            {'_id': ObjectId(post_id)}
-        ]
-    }
+    deleted_post = await AuthorService.delete(post_id=post_id, user_id=user_id)
 
-    # find_one_and_delete находит и удаляет, возвращая удаляемый документ, если запись не найдено - вернет None
-    post = await Post.find_one_and_delete(filter_criteria)
-
-    logger.debug(f'post: {post}')
-
-    if not post:
+    if not deleted_post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f'Запись №{post_id} не найдена'
